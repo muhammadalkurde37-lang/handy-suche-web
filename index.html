@@ -46,7 +46,7 @@ main{max-width:1100px;margin:auto;padding:12px 16px 120px}
 .cpu i b{position:absolute;inset:0 auto 0 0;border-radius:3px}
 [dir=rtl] .cpu i b{inset:0 0 0 auto}
 .cpu span{font-size:12px;font-weight:700;min-width:22px}
-.prices{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:6px;margin-top:8px}
+.prices{display:grid;grid-template-columns:1fr 1.3fr 1fr 1fr;gap:6px;margin-top:8px}
 .prices small{display:block;font-size:11px;color:var(--muted)}
 .prices .tot{font-weight:800;font-size:17px}
 .tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
@@ -151,7 +151,8 @@ function prep(j) {
   o.monthlySum = o.later != null && o.laterFrom > 1 && o.laterFrom <= o.months ? m * (o.laterFrom - 1) + o.later * (o.months - o.laterFrom + 1) : m * o.months;
   o.total = (o.upfront || 0) + o.connection + o.shipping + o.monthlySum;
   o.net = o.total - o.bonus;
-  o.avg = o.total / o.months;
+  o.avg = o.total / o.months; // everything paid, spread evenly over the term
+  o.avgNet = o.net / o.months;
   o.perf = o.score != null && o.net > 0 ? (o.score / o.net) * 100 : null;
   o.tier = tierOf(o.score);
   o.id = [o.shop.toLowerCase(), devKey(o.device), o.storage ?? "", o.provider.toLowerCase(), o.tariff.toLowerCase().replace(/\s+/g, " "), o.months, o.young ? "y" : ""].join("|");
@@ -170,7 +171,7 @@ const SORTS = {
 };
 const SETS = ["brands", "devices", "networks", "providers", "shops", "kinds", "tiers", "storages", "months"];
 function freshFilters() {
-  const f = { q: "", dataMin: 0, cpuMin: 0, ramMin: 0, upfront: null, monthly: null, net: null, young: "all", onlyBonus: false, onlyFav: false,
+  const f = { q: "", dataMin: 0, cpuMin: 0, ramMin: 0, upfront: null, monthly: null, net: null, avg: null, young: "all", onlyBonus: false, onlyFav: false,
     onlyNew: false, onlyCheaper: false, hideExpired: true, unknownStorage: true, best: false, sort: "net" };
   SETS.forEach((k) => (f[k] = []));
   return f;
@@ -183,7 +184,7 @@ const cmp = new Map();
 let gh = LS.get("github", { owner: "", repo: "handy-suche", branch: "main", token: "" });
 
 function activeCount() {
-  return SETS.filter((k) => F[k].length).length + [F.dataMin, F.cpuMin, F.ramMin, F.upfront, F.monthly, F.net, F.young !== "all",
+  return SETS.filter((k) => F[k].length).length + [F.dataMin, F.cpuMin, F.ramMin, F.upfront, F.monthly, F.net, F.avg, F.young !== "all",
     F.onlyBonus, F.onlyFav, F.onlyNew, F.onlyCheaper, F.best].filter(Boolean).length;
 }
 
@@ -211,7 +212,7 @@ function apply() {
     if (F.ramMin && (o.ram || 0) < F.ramMin) return false;
     if (F.dataMin && (o.data || 0) < F.dataMin) return false;
     if (F.cpuMin && (o.score || 0) < F.cpuMin) return false;
-    if (!inR(F.upfront, o.upfront) || !inR(F.monthly, o.monthly) || !inR(F.net, o.net)) return false;
+    if (!inR(F.upfront, o.upfront) || !inR(F.monthly, o.monthly) || !inR(F.net, o.net) || !inR(F.avg, o.avg)) return false;
     if (F.young === "hide" && o.young) return false;
     if (F.young === "only" && !o.young) return false;
     if (F.onlyBonus && o.bonus <= 0) return false;
@@ -261,6 +262,7 @@ function card(o, i) {
     <div class="sub">${esc(o.network ? o.network + " · " : "")}${gb(o.data)}${o.speed ? " · " + o.speed + " Mbit/s" : ""} · ${o.months} شهراً</div>
     <div class="prices"><div><small>الدفعة الأولى</small>${euro(o.upfront)}</div>
       <div><small>شهرياً</small>${euro(o.monthly)}${o.later != null ? " ثم " + euro(o.later) : ""}</div>
+      <div><small>متوسط/شهر</small>${euro(o.avg)}</div>
       <div><small>${o.bonus > 0 ? "بعد المكافآت" : "الإجمالي"}</small><span class="tot">${euro(o.net)}</span></div></div>
     <div class="tags">${tags(o)}</div></div>`;
 }
@@ -345,7 +347,7 @@ function details(o) {
       o.later != null && [`الدفعة اللاحقة (من الشهر ${o.laterFrom})`, euro(o.later)],
       ["رسوم التفعيل", euro(o.connection)], ["كلفة الإرسال", euro(o.shipping)], ["مجموع الأقساط", euro(o.monthlySum)],
       ["الكلفة الإجمالية", euro(o.total), 1], ["المكافآت (بشروط)", o.bonus > 0 ? "− " + euro(o.bonus) : "—"],
-      ["الإجمالي بعد المكافآت", euro(o.net), 1], ["المتوسط الشهري الفعلي", euro(o.avg)]])}</div>
+      ["الإجمالي بعد المكافآت", euro(o.net), 1], ["المتوسط الشهري الفعلي", euro(o.avg), 1], o.bonus > 0 && ["المتوسط الشهري بعد المكافآت", euro(o.avgNet)]])}</div>
     <div class="sec"><h3>الجهاز</h3>${kv([["الجهاز", esc(o.device)], ["الماركة", esc(o.brand)], ["الذاكرة", gb(o.storage)],
       ["RAM", o.ram ? ltr(o.ram + " GB") : "؟"], ["المعالج", esc(o.chip || "غير معروف")], ["نقاط المعالج", cpuBar(o)], ["فئة الأداء", esc(o.tier)],
       ["أداء لكل 100 €", o.perf ? o.perf.toFixed(2) : "—"], o.color && ["اللون", esc(o.color)]])}</div>
@@ -372,7 +374,7 @@ $("#cmpbtn").onclick = () => {
     ["الدفعة الأولى", (o) => euro(o.upfront), (o) => o.upfront], ["الشهري", (o) => euro(o.monthly), (o) => o.monthly],
     ["الدفعة اللاحقة", (o) => (o.later == null ? "—" : `${euro(o.later)} من ش${o.laterFrom}`)], ["التفعيل", (o) => euro(o.connection), (o) => o.connection],
     ["الإرسال", (o) => euro(o.shipping), (o) => o.shipping], ["الإجمالي", (o) => euro(o.total), (o) => o.total],
-    ["المكافآت", (o) => (o.bonus ? euro(o.bonus) : "—"), (o) => o.bonus, 1], ["بعد المكافآت", (o) => euro(o.net), (o) => o.net],
+    ["المكافآت", (o) => (o.bonus ? euro(o.bonus) : "—"), (o) => o.bonus, 1], ["بعد المكافآت", (o) => euro(o.net), (o) => o.net], ["متوسط شهري", (o) => euro(o.avg), (o) => o.avg],
     ["أداء/100 €", (o) => (o.perf ? o.perf.toFixed(2) : "—"), (o) => o.perf, 1], ["للشباب", (o) => (o.young ? "نعم" : "لا")], ["المصدر", (o) => esc(KIND[o.kind] || o.kind)],
   ];
   const best = (n, hi, o) => {
@@ -417,6 +419,7 @@ function filters() {
     ${range("الدفعة الأولى", "upfront", (o) => o.upfront)}
     ${range("القسط الشهري", "monthly", (o) => o.monthly)}
     ${range("الإجمالي بعد المكافآت", "net", (o) => o.net)}
+    ${range("المتوسط الشهري (كل التكاليف ÷ الأشهر)", "avg", (o) => o.avg)}
     ${choice("تعرفات الشباب", "young", ["all", "hide", "only"], (v) => ({ all: "الكل", hide: "إخفاء", only: "فقط" }[v]))}
     ${chips("فئة الأداء", "tiers", count((o) => o.tier), tierShort, TIERS)}
     ${choice("أقل نقاط معالج", "cpuMin", [0, 20, 32, 40, 50, 65, 85], (v) => (v ? v + "+" : "الكل"))}
@@ -457,7 +460,7 @@ async function api(path, opts = {}) {
   const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}${path}`, {
     ...opts, headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(gh.token ? { Authorization: "Bearer " + gh.token } : {}), ...(opts.headers || {}) },
   });
-  if (!r.ok && r.status !== 204) throw new Error(r.status === 401 ? "الرمز غير صحيح أو منتهي" : r.status === 403 ? "الرمز لا يملك الصلاحية المطلوبة" : r.status === 404 ? "المستودع أو الملف غير موجود، أو يحتاج رمزاً" : "GitHub " + r.status);
+  if (!r.ok && r.status !== 204) throw new Error(r.status === 401 ? "الرمز غير صحيح أو منتهي" : r.status === 403 ? "الرمز لا يملك الصلاحية المطلوبة" : r.status === 404 ? "غير موجود (404)" : "GitHub " + r.status);
   return r;
 }
 function useData(text, where) {
@@ -476,12 +479,23 @@ async function load() {
     }
   } catch {}
   if (gh.owner && gh.repo) {
+    // Step by step, so the message says exactly what is wrong.
+    let step = "repo";
     try {
+      if (!gh.token) throw new Error("لم تُدخل رمز الوصول. المستودع خاص، فالصفحة تحتاج رمزاً لقراءته");
+      await api("");
+      step = "file";
       const r = await api(`/contents/data/offers.json?ref=${encodeURIComponent(gh.branch)}`, { headers: { Accept: "application/vnd.github.raw+json" }, cache: "no-cache" });
+      step = "parse";
       return useData(await r.text(), "api");
     } catch (e) {
-      $("#status").innerHTML = `<span class="err">${esc(e.message)}</span>`;
-      return settings();
+      const why = {
+        repo: `لا أستطيع الوصول إلى المستودع "${gh.owner}/${gh.repo}": ${e.message}. تحقق من اسم الحساب واسم المستودع، ومن أن الرمز مسموح له بهذا المستودع (Contents: Read-only).`,
+        file: `المستودع يعمل، لكن ملف النتائج data/offers.json غير موجود في الفرع "${gh.branch}" (${e.message}). شغّل Actions ← Suche ← Run workflow وانتظر ✅، أو تحقق من اسم الفرع.`,
+        parse: `ملف النتائج موجود لكنه تالف أو بصيغة قديمة: ${e.message}`,
+      }[step];
+      $("#status").innerHTML = `<span class="err">${esc(why)}</span>`;
+      return settings(why);
     }
   }
   $("#status").textContent = "لم تُحمَّل نتائج بعد.";
@@ -498,7 +512,7 @@ function settings(msg = "") {
     <label class="f">رمز الوصول (Fine-grained token)</label><input class="t" id="g_token" type="password" value="${esc(gh.token)}" autocomplete="off">
     <p class="note">يُحفظ في هذا المتصفح فقط. للقراءة يكفي رمز بصلاحية Contents: Read. لزر «ابحث الآن» يلزم Actions: Read and write.</p>
     <p><button class="btn primary" id="g_save">احفظ وحمّل النتائج</button> <button class="btn" id="g_run">ابحث الآن على GitHub</button></p>
-    <p id="g_msg" class="note">${esc(msg)}</p>
+    <p id="g_msg" class="${msg ? "err" : "note"}">${esc(msg)}</p>
     <label class="f">أو افتح ملف نتائج من جهازك (offers.json)</label><input type="file" id="g_file" accept=".json,application/json">
     ${stats ? `<div class="sec"><h3>المصادر في آخر بحث</h3><p class="note">${stats}</p></div>` : ""}
     <div class="sec"><h3>المظهر</h3><div class="chips">${[["auto", "تلقائي"], ["light", "فاتح"], ["dark", "داكن"]].map(([v, l]) => `<button class="chip${(LS.get("theme", "auto")) === v ? " on" : ""}" data-theme-set="${v}">${l}</button>`).join("")}</div></div>`);
