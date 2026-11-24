@@ -1,0 +1,546 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Handy-Suche</title>
+<meta name="description" content="محرك بحث عروض الهواتف مع عقد: فلاتر وترتيب ومقارنة">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='6' y='2' width='12' height='20' rx='2.5' fill='%23e20074'/%3E%3Crect x='8' y='5' width='8' height='12' rx='1' fill='white'/%3E%3C/svg%3E">
+<style>
+:root{--bg:#f6f4f7;--card:#fff;--text:#1d1b20;--muted:#625b66;--line:#e4dfe7;--accent:#c4006a;--accent-soft:#fbe3f0;
+--good:#2e7d32;--bad:#c62828;--warn:#e65100;--chip:#efe9f2;--shadow:0 1px 3px rgba(0,0,0,.08)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141216;--card:#1f1c22;--text:#ece6ee;--muted:#a59fab;
+--line:#38333d;--accent:#ff5fb0;--accent-soft:#3a1d2d;--good:#81c784;--bad:#ef9a9a;--warn:#ffb74d;--chip:#2b2730;--shadow:none}}
+:root[data-theme="dark"]{--bg:#141216;--card:#1f1c22;--text:#ece6ee;--muted:#a59fab;--line:#38333d;--accent:#ff5fb0;
+--accent-soft:#3a1d2d;--good:#81c784;--bad:#ef9a9a;--warn:#ffb74d;--chip:#2b2730;--shadow:none}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 system-ui,"Segoe UI",Tahoma,sans-serif}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px}
+.bar{display:flex;gap:8px;align-items:center;max-width:1100px;margin:auto}
+.bar h1{font-size:18px;margin:0;color:var(--accent);white-space:nowrap}
+#q{flex:1;min-width:0;padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+.btn{border:1px solid var(--line);background:var(--card);padding:8px 12px;border-radius:10px;white-space:nowrap}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+select.btn{max-width:210px}
+main{max-width:1100px;margin:auto;padding:12px 16px 120px}
+.status{color:var(--muted);font-size:13px;margin:4px 0 8px}
+.status b{color:var(--text)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:5px 11px;font-size:13px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:600}
+.insights{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}
+.ins{background:var(--accent-soft);border-radius:12px;padding:10px;cursor:pointer;min-width:0}
+.ins small{color:var(--accent);font-weight:600}
+.ins div{font-weight:700;font-size:14px;overflow:hidden;text-overflow:ellipsis}
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(330px,1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow);cursor:pointer;min-width:0}
+.card.sel{outline:2px solid var(--accent)}
+.row{display:flex;gap:8px;align-items:flex-start}
+.title{font-weight:700;flex:1;min-width:0}
+.sub{color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cpu{display:flex;align-items:center;gap:6px;margin:6px 0}
+.cpu i{flex:1;height:5px;border-radius:3px;background:var(--line);position:relative;overflow:hidden}
+.cpu i b{position:absolute;inset:0 auto 0 0;border-radius:3px}
+[dir=rtl] .cpu i b{inset:0 0 0 auto}
+.cpu span{font-size:12px;font-weight:700;min-width:22px}
+.prices{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:6px;margin-top:8px}
+.prices small{display:block;font-size:11px;color:var(--muted)}
+.prices .tot{font-weight:800;font-size:17px}
+.tags{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}
+.tag{font-size:11.5px;font-weight:600;padding:2px 7px;border-radius:6px;background:var(--chip);color:var(--muted)}
+.tag.g{color:var(--good)}.tag.r{color:var(--bad)}.tag.w{color:var(--warn)}.tag.a{color:var(--accent)}
+.more{display:block;margin:16px auto}
+.empty{text-align:center;padding:48px 16px;color:var(--muted)}
+.cmpbar{position:fixed;bottom:16px;inset-inline:0;display:flex;justify-content:center;pointer-events:none}
+.cmpbar .btn{pointer-events:auto;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+dialog{border:none;border-radius:16px;padding:0;background:var(--card);color:var(--text);width:min(760px,calc(100vw - 24px));max-height:calc(100vh - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dhead{position:sticky;top:0;background:var(--card);display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line);z-index:1}
+.dhead h2{font-size:17px;margin:0;flex:1;min-width:0}
+.dbody{padding:12px 16px 20px}
+.sec{margin:14px 0}
+.sec h3{font-size:14px;margin:0 0 6px;display:flex;justify-content:space-between}
+.sec h3 a{color:var(--accent);font-weight:400;cursor:pointer;font-size:12px}
+.sec h3.on{color:var(--accent)}
+.rng{display:flex;gap:8px;align-items:center}
+.rng input{width:100px;padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+table.kv{width:100%;border-collapse:collapse}
+table.kv td{padding:6px 4px;border-bottom:1px solid var(--line);vertical-align:top}
+table.kv td:first-child{color:var(--muted);width:42%}
+table.kv tr.strong td{font-weight:800}
+.cmpwrap{overflow-x:auto}
+table.cmp{border-collapse:collapse;font-size:13px;min-width:100%}
+table.cmp th,table.cmp td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:start;min-width:130px;vertical-align:top}
+table.cmp td:first-child,table.cmp th:first-child{color:var(--muted);min-width:110px;position:sticky;inset-inline-start:0;background:var(--card)}
+table.cmp td.best{color:var(--good);font-weight:800}
+label.f{display:block;margin:8px 0 2px;font-size:13px;color:var(--muted)}
+input.t{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.note{font-size:13px;color:var(--muted)}
+.err{color:var(--bad);font-weight:600}
+a{color:var(--accent)}
+@media (max-width:640px){
+  .bar h1{display:none} .insights{grid-template-columns:1fr} .list{grid-template-columns:1fr}
+  select.btn{max-width:120px} .btn{padding:8px 9px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <h1>Handy-Suche</h1>
+    <input id="q" type="search" placeholder="ابحث: جهاز، متجر، تعرفة، معالج..." autocomplete="off">
+    <select id="sort" class="btn" title="الترتيب"></select>
+    <button id="fbtn" class="btn" title="الفلاتر">الفلاتر</button>
+    <button id="sbtn" class="btn" title="الإعدادات">⚙️</button>
+  </div>
+</header>
+<main>
+  <div id="status" class="status">جاري التحميل...</div>
+  <div id="quick" class="chips"></div>
+  <div id="ins" class="insights"></div>
+  <div id="list" class="list"></div>
+  <button id="more" class="btn more" hidden>أظهر المزيد</button>
+  <div id="empty" class="empty" hidden></div>
+</main>
+<div class="cmpbar"><button id="cmpbtn" class="btn primary" hidden></button></div>
+
+<dialog id="dlg"><div class="dhead"><h2 id="dtitle"></h2><span id="dactions"></span><button class="btn" data-close>✕</button></div><div id="dbody" class="dbody"></div></dialog>
+
+<script>
+"use strict";
+// ---------- storage (per browser, optional) ----------
+const LS = {
+  get(k, d) { try { const v = localStorage.getItem("hs." + k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem("hs." + k, JSON.stringify(v)); } catch {} },
+};
+
+// ---------- helpers ----------
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const safeUrl = (u) => (/^https?:\/\//i.test(u || "") ? u : "#");
+// \u2066..\u2069 isolate "256 GB" / "29,95 €" so right-to-left text doesn't flip them to "GB 256".
+const ltr = (s) => "\u2066" + s + "\u2069";
+const euro = (v) => (v == null ? "—" : ltr((Math.round(v * 100) / 100).toLocaleString("de-DE", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) + " €"));
+const gb = (v) => (v == null ? "؟" : v >= 9999 ? "غير محدود" : ltr(v >= 1024 ? v / 1024 + " TB" : v + " GB"));
+const day = (d) => (d ? `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}` : "—");
+const KIND = { live: "مباشر من المتجر", portal: "عبر بوابة مقارنة", blog: "مقال عرض", custom: "موقع أضفته (تقديري)" };
+const TIERS = ["1 رائد (الأقوى)", "2 رائد سابق", "3 متوسط عالٍ", "4 متوسط", "5 متوسط اقتصادي", "6 اقتصادي", "غير معروف"];
+const tierOf = (s) => (s == null ? TIERS[6] : s >= 85 ? TIERS[0] : s >= 65 ? TIERS[1] : s >= 50 ? TIERS[2] : s >= 32 ? TIERS[3] : s >= 20 ? TIERS[4] : TIERS[5]);
+const tierShort = (t) => t.replace(/^\d\s/, "");
+const tierColor = (s) => (s == null ? "var(--muted)" : s >= 85 ? "#2e7d32" : s >= 65 ? "#558b2f" : s >= 50 ? "#9e9d24" : s >= 32 ? "#ef6c00" : "#c62828");
+const devKey = (n) => {
+  let s = n.toLowerCase().replace(/\+/g, " plus").replace(/xiaomi|samsung|galaxy/g, "").replace(/\(?\d+\s*(gb|tb)\)?.*$/, "");
+  const keep5g = s.includes("redmi note 15 pro") && !s.includes("plus");
+  return s.replace(keep5g ? /\b(4g|eu|de)\b/g : /\b(5g|4g|eu|de)\b/g, "").replace(/[^a-z0-9]/g, "");
+};
+
+// Same arithmetic as lib/core/model.dart, so app and page always agree.
+function prep(j) {
+  const o = {
+    src: j.src, kind: j.k, shop: j.shop || "", device: j.dev || "", brand: j.br || "", storage: j.st === 1000 ? 1024 : j.st ?? null, ram: j.ram ?? null,
+    chip: j.chip || "", color: j.col || "", network: j.net || "", provider: j.prov || "", tariff: j.tar || "", data: j.gb ?? null,
+    speed: j.sp ?? null, young: j.y === 1, months: j.mo || 24, upfront: j.up ?? null, monthly: j.m ?? null, later: j.m2 ?? null,
+    laterFrom: j.m2f ?? null, connection: j.con || 0, shipping: j.ship || 0, bonus: j.bon || 0, bonusText: j.bt || "",
+    published: j.pub ? new Date(j.pub) : null, until: j.until ? new Date(j.until) : null, url: j.url || "",
+    fetched: j.at ? new Date(j.at) : null, first: j.first ? new Date(j.first) : null, prev: j.prev ?? null, score: j.cs ?? null,
+  };
+  const m = o.monthly || 0;
+  o.monthlySum = o.later != null && o.laterFrom > 1 && o.laterFrom <= o.months ? m * (o.laterFrom - 1) + o.later * (o.months - o.laterFrom + 1) : m * o.months;
+  o.total = (o.upfront || 0) + o.connection + o.shipping + o.monthlySum;
+  o.net = o.total - o.bonus;
+  o.avg = o.total / o.months;
+  o.perf = o.score != null && o.net > 0 ? (o.score / o.net) * 100 : null;
+  o.tier = tierOf(o.score);
+  o.id = [o.shop.toLowerCase(), devKey(o.device), o.storage ?? "", o.provider.toLowerCase(), o.tariff.toLowerCase().replace(/\s+/g, " "), o.months, o.young ? "y" : ""].join("|");
+  o.expired = (o.until && o.until < Date.now() - 864e5) || o.bonusText.includes("انتهى");
+  o.hay = `${o.device} ${o.shop} ${o.tariff} ${o.chip} ${o.provider} ${o.network}`.toLowerCase();
+  return o;
+}
+
+// ---------- state ----------
+const SORTS = {
+  net: ["الأرخص بعد المكافآت", (o) => o.net], total: ["الأرخص (المجموع الكامل)", (o) => o.total], monthly: ["أقل قسط شهري", (o) => o.monthly],
+  upfront: ["أقل دفعة أولى", (o) => o.upfront], avg: ["أقل متوسط شهري", (o) => o.avg], perf: ["أفضل أداء مقابل السعر", (o) => o.perf, 1],
+  cpu: ["أقوى معالج", (o) => o.score, 1], ram: ["أكبر RAM", (o) => o.ram, 1], storage: ["أكبر ذاكرة", (o) => o.storage, 1],
+  data: ["أكبر باقة إنترنت", (o) => o.data, 1], drop: ["أكبر انخفاض في السعر", (o) => (o.prev == null ? null : o.prev - o.net), 1],
+  newest: ["الأحدث ظهوراً", (o) => o.first?.getTime() ?? null, 1], published: ["تاريخ النشر", (o) => o.published?.getTime() ?? null, 1],
+};
+const SETS = ["brands", "devices", "networks", "providers", "shops", "kinds", "tiers", "storages", "months"];
+function freshFilters() {
+  const f = { q: "", dataMin: 0, cpuMin: 0, ramMin: 0, upfront: null, monthly: null, net: null, young: "all", onlyBonus: false, onlyFav: false,
+    onlyNew: false, onlyCheaper: false, hideExpired: true, unknownStorage: true, best: false, sort: "net" };
+  SETS.forEach((k) => (f[k] = []));
+  return f;
+}
+let F = Object.assign(freshFilters(), LS.get("filters", {}));
+F.q = "";
+let ALL = [], SHOWN = [], META = null, PAGE = 60;
+const favs = new Set(LS.get("favs", []));
+const cmp = new Map();
+let gh = LS.get("github", { owner: "", repo: "handy-suche", branch: "main", token: "" });
+
+function activeCount() {
+  return SETS.filter((k) => F[k].length).length + [F.dataMin, F.cpuMin, F.ramMin, F.upfront, F.monthly, F.net, F.young !== "all",
+    F.onlyBonus, F.onlyFav, F.onlyNew, F.onlyCheaper, F.best].filter(Boolean).length;
+}
+
+function myCriteria() {
+  const s = F.sort; F = freshFilters(); F.sort = s;
+  F.networks = ["Telekom"]; F.dataMin = 100; F.storages = [256, 512, 1024]; F.unknownStorage = false; F.upfront = [0, 100]; F.young = "hide";
+}
+const isMine = () => F.networks.join() === "Telekom" && F.dataMin >= 100 && F.upfront && F.upfront[1] === 100;
+
+function apply() {
+  const words = $("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const now = Date.now();
+  const inR = (r, v) => !r || ((v ?? 0) >= r[0] - 0.001 && (v ?? 0) <= r[1] + 0.001);
+  let out = ALL.filter((o) => {
+    if (words.length && !words.every((w) => o.hay.includes(w))) return false;
+    if (F.brands.length && !F.brands.includes(o.brand)) return false;
+    if (F.devices.length && !F.devices.includes(o.device)) return false;
+    if (F.networks.length && !F.networks.includes(o.network)) return false;
+    if (F.providers.length && !F.providers.includes(o.provider)) return false;
+    if (F.shops.length && !F.shops.includes(o.shop)) return false;
+    if (F.kinds.length && !F.kinds.includes(o.kind)) return false;
+    if (F.tiers.length && !F.tiers.includes(o.tier)) return false;
+    if (F.storages.length && !(o.storage == null ? F.unknownStorage : F.storages.includes(o.storage))) return false;
+    if (F.months.length && !F.months.includes(o.months)) return false;
+    if (F.ramMin && (o.ram || 0) < F.ramMin) return false;
+    if (F.dataMin && (o.data || 0) < F.dataMin) return false;
+    if (F.cpuMin && (o.score || 0) < F.cpuMin) return false;
+    if (!inR(F.upfront, o.upfront) || !inR(F.monthly, o.monthly) || !inR(F.net, o.net)) return false;
+    if (F.young === "hide" && o.young) return false;
+    if (F.young === "only" && !o.young) return false;
+    if (F.onlyBonus && o.bonus <= 0) return false;
+    if (F.onlyFav && !favs.has(o.id)) return false;
+    if (F.onlyNew && (!o.first || now - o.first > 3 * 864e5)) return false;
+    if (F.onlyCheaper && !((o.prev || 0) > o.net)) return false;
+    if (F.hideExpired && o.expired) return false;
+    return true;
+  });
+  const [, key, desc] = SORTS[F.sort] || SORTS.net;
+  out.sort((a, b) => {
+    const x = key(a), y = key(b);
+    if (x == null && y == null) return a.net - b.net;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    return (desc ? y - x : x - y) || a.net - b.net;
+  });
+  if (F.best) { const seen = new Set(); out = out.filter((o) => { const k = devKey(o.device) + "|" + o.storage; return !seen.has(k) && seen.add(k); }); }
+  SHOWN = out;
+  LS.set("filters", F);
+  render();
+}
+
+// ---------- rendering ----------
+function tags(o) {
+  const t = [], now = Date.now();
+  if (favs.has(o.id)) t.push(["★ مفضلة", "w"]);
+  if (o.first && now - o.first <= 3 * 864e5 && o.prev == null) t.push(["جديد", "a"]);
+  if (o.prev != null && o.prev > o.net + 0.009) t.push(["▼ أرخص بـ " + euro(o.prev - o.net), "g"]);
+  if (o.prev != null && o.prev < o.net - 0.009) t.push(["▲ أغلى بـ " + euro(o.net - o.prev), "r"]);
+  if (o.young) t.push(["للشباب فقط", "w"]);
+  if (o.bonus > 0) t.push(["مكافأة " + euro(o.bonus), "g"]);
+  if (o.later != null) t.push(["السعر يتغير من الشهر " + o.laterFrom, "w"]);
+  if (o.kind !== "live") t.push([KIND[o.kind] || o.kind, ""]);
+  if (o.published) t.push(["نُشر " + day(o.published), ""]);
+  if (o.until) t.push(["حتى " + day(o.until), "a"]);
+  return t.map(([s, c]) => `<span class="tag ${c}">${esc(s)}</span>`).join("");
+}
+const cpuBar = (o) => `<div class="cpu"><i><b style="width:${o.score || 0}%;background:${tierColor(o.score)}"></b></i><span style="color:${tierColor(o.score)}">${o.score ?? "؟"}</span></div>`;
+
+function card(o, i) {
+  return `<div class="card${cmp.has(o.id) ? " sel" : ""}" data-i="${i}">
+    <div class="row"><div class="title">${esc(o.device)} · ${gb(o.storage)}${o.ram ? " · " + ltr(o.ram + "GB RAM") : ""}</div>
+      <input type="checkbox" data-cmp="${i}" title="للمقارنة" ${cmp.has(o.id) ? "checked" : ""}></div>
+    <div class="sub">${esc(o.chip || "معالج غير معروف")} · ${esc(tierShort(o.tier))}</div>${cpuBar(o)}
+    <div class="sub">${esc(o.shop)} · ${esc(o.tariff)}</div>
+    <div class="sub">${esc(o.network ? o.network + " · " : "")}${gb(o.data)}${o.speed ? " · " + o.speed + " Mbit/s" : ""} · ${o.months} شهراً</div>
+    <div class="prices"><div><small>الدفعة الأولى</small>${euro(o.upfront)}</div>
+      <div><small>شهرياً</small>${euro(o.monthly)}${o.later != null ? " ثم " + euro(o.later) : ""}</div>
+      <div><small>${o.bonus > 0 ? "بعد المكافآت" : "الإجمالي"}</small><span class="tot">${euro(o.net)}</span></div></div>
+    <div class="tags">${tags(o)}</div></div>`;
+}
+
+function render() {
+  const total = ALL.length;
+  if (META) {
+    const g = new Date(META.generated), age = (Date.now() - g) / 36e5;
+    $("#status").innerHTML = `<b>${SHOWN.length}</b> من ${total} عرض · ${esc(SORTS[F.sort][0])} · آخر بحث ${day(g)} ${g.getHours()}:${String(g.getMinutes()).padStart(2, "0")} (${META.where === "github" ? "GitHub" : "الهاتف"})${age >= 24 ? ' · <span class="err">قديم، ابحث من جديد</span>' : ""}`;
+  }
+  $("#fbtn").textContent = activeCount() ? `الفلاتر (${activeCount()})` : "الفلاتر";
+  const quick = [
+    ["شروطي", isMine(), () => (isMine() ? (F = Object.assign(freshFilters(), { sort: F.sort })) : myCriteria())],
+    ["Telekom", F.networks.join() === "Telekom", () => (F.networks = F.networks.join() === "Telekom" ? [] : ["Telekom"])],
+    ["100GB+", F.dataMin >= 100, () => (F.dataMin = F.dataMin >= 100 ? 0 : 100)],
+    ["دفعة ≤100 €", F.upfront && F.upfront[1] === 100, () => (F.upfront = F.upfront && F.upfront[1] === 100 ? null : [0, 100])],
+    ["أفضل عرض لكل جهاز", F.best, () => (F.best = !F.best)],
+    ["بدون تعرفات الشباب", F.young === "hide", () => (F.young = F.young === "hide" ? "all" : "hide")],
+    ["صار أرخص", F.onlyCheaper, () => (F.onlyCheaper = !F.onlyCheaper)],
+    ["المفضلة", F.onlyFav, () => (F.onlyFav = !F.onlyFav)],
+  ];
+  $("#quick").innerHTML = quick.map((c, i) => `<button class="chip${c[1] ? " on" : ""}" data-q="${i}">${c[0]}</button>`).join("");
+  $("#quick").onclick = (e) => { const i = e.target.dataset.q; if (i != null) { quick[i][2](); apply(); } };
+
+  if (SHOWN.length) {
+    const cheapest = SHOWN.reduce((a, b) => (b.net < a.net ? b : a));
+    const wp = SHOWN.filter((o) => o.perf != null);
+    const value = wp.length ? wp.reduce((a, b) => (b.perf > a.perf ? b : a)) : null;
+    const strong = wp.length ? wp.reduce((a, b) => (b.score > a.score || (b.score === a.score && b.net < a.net) ? b : a)) : null;
+    const ins = [["💰 الأرخص", cheapest], ["⚖️ أفضل قيمة", value], ["⚡ الأقوى", strong]].filter((x) => x[1]);
+    $("#ins").innerHTML = ins.map(([t, o]) => `<div class="ins" data-id="${esc(o.id)}" data-net="${o.net}"><small>${t}</small><div>${esc(o.device)} ${gb(o.storage)}</div><span class="note">${euro(o.net)} · ${esc(o.shop)}</span></div>`).join("");
+    $("#ins").onclick = (e) => { const el = e.target.closest(".ins"); if (el) details(SHOWN.find((o) => o.id === el.dataset.id && String(o.net) === el.dataset.net)); };
+  } else $("#ins").innerHTML = "";
+
+  $("#list").innerHTML = SHOWN.slice(0, PAGE).map(card).join("");
+  $("#more").hidden = SHOWN.length <= PAGE;
+  $("#more").textContent = `أظهر المزيد (${SHOWN.length - PAGE} متبقٍ)`;
+  $("#empty").hidden = SHOWN.length > 0 || !META;
+  $("#empty").textContent = "لا توجد عروض بهذه الفلاتر. خفّف الفلاتر أو اضغط شروطي مرة أخرى لإلغائها.";
+  renderCmp();
+}
+function renderCmp() {
+  $("#cmpbtn").hidden = cmp.size < 2;
+  $("#cmpbtn").textContent = `قارن (${cmp.size})`;
+}
+
+$("#list").addEventListener("click", (e) => {
+  const cb = e.target.closest("[data-cmp]");
+  if (cb) {
+    const o = SHOWN[cb.dataset.cmp];
+    if (cb.checked) { if (cmp.size >= 6) { cb.checked = false; return; } cmp.set(o.id + o.net, o); } else cmp.delete(o.id + o.net);
+    cb.closest(".card").classList.toggle("sel", cb.checked);
+    renderCmp();
+    return;
+  }
+  const c = e.target.closest(".card");
+  if (c) details(SHOWN[c.dataset.i]);
+});
+$("#more").onclick = () => { PAGE += 60; render(); };
+
+// ---------- dialogs ----------
+const dlg = $("#dlg");
+dlg.addEventListener("click", (e) => { if (e.target === dlg || e.target.closest("[data-close]")) dlg.close(); });
+function openDlg(title, body, actions = "") {
+  $("#dtitle").textContent = title;
+  $("#dactions").innerHTML = actions;
+  $("#dbody").innerHTML = body;
+  if (!dlg.open) dlg.showModal();
+  $("#dbody").scrollTop = 0;
+}
+
+function details(o) {
+  if (!o) return;
+  const kv = (rows) => `<table class="kv">${rows.filter(Boolean).map(([k, v, s]) => `<tr${s ? ' class="strong"' : ""}><td>${esc(k)}</td><td>${v}</td></tr>`).join("")}</table>`;
+  const first = o.laterFrom ? o.laterFrom - 1 : o.months;
+  const same = ALL.filter((x) => x !== o && devKey(x.device) === devKey(o.device) && x.storage === o.storage && !x.expired).sort((a, b) => a.net - b.net).slice(0, 8);
+  openDlg(o.device,
+    `<div class="tags">${tags(o)}</div>
+    <div class="sec"><h3>التكاليف لمدة العقد (${o.months} شهراً)</h3>${kv([
+      ["الدفعة الأولى (الجهاز)", euro(o.upfront)],
+      [o.later == null ? "القسط الشهري" : `القسط الشهري (الأشهر 1-${first})`, euro(o.monthly)],
+      o.later != null && [`الدفعة اللاحقة (من الشهر ${o.laterFrom})`, euro(o.later)],
+      ["رسوم التفعيل", euro(o.connection)], ["كلفة الإرسال", euro(o.shipping)], ["مجموع الأقساط", euro(o.monthlySum)],
+      ["الكلفة الإجمالية", euro(o.total), 1], ["المكافآت (بشروط)", o.bonus > 0 ? "− " + euro(o.bonus) : "—"],
+      ["الإجمالي بعد المكافآت", euro(o.net), 1], ["المتوسط الشهري الفعلي", euro(o.avg)]])}</div>
+    <div class="sec"><h3>الجهاز</h3>${kv([["الجهاز", esc(o.device)], ["الماركة", esc(o.brand)], ["الذاكرة", gb(o.storage)],
+      ["RAM", o.ram ? ltr(o.ram + " GB") : "؟"], ["المعالج", esc(o.chip || "غير معروف")], ["نقاط المعالج", cpuBar(o)], ["فئة الأداء", esc(o.tier)],
+      ["أداء لكل 100 €", o.perf ? o.perf.toFixed(2) : "—"], o.color && ["اللون", esc(o.color)]])}</div>
+    <div class="sec"><h3>التعرفة</h3>${kv([["التعرفة", esc(o.tariff)], ["المزوّد", esc(o.provider || "—")], ["الشبكة", esc(o.network || "؟")],
+      ["الإنترنت", gb(o.data)], ["السرعة", o.speed ? ltr(o.speed + " Mbit/s") : "—"], ["مدة العقد", o.months + " شهراً"],
+      ["للشباب فقط", o.young ? "نعم (حد عمر)" : "لا"], o.bonusText && ["المكافآت والهدايا", esc(o.bonusText)]])}</div>
+    <div class="sec"><h3>المصدر</h3>${kv([["المتجر", esc(o.shop)], ["نوع المصدر", esc(KIND[o.kind] || o.kind)], ["تاريخ النشر", day(o.published)],
+      ["العرض حتى", o.until ? day(o.until) : "غير مذكور"], ["أول ظهور في بحثك", day(o.first)], ["آخر تحديث", day(o.fetched)],
+      o.prev != null && ["السعر السابق (بعد المكافآت)", euro(o.prev)]])}</div>
+    ${same.length ? `<div class="sec"><h3>نفس الجهاز والذاكرة في عروض أخرى</h3>${kv(same.map((x) => [`${x.shop} · ${x.tariff}`, `<a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">${euro(x.net)}</a> · ${gb(x.data)}`]))}</div>` : ""}
+    <p><a class="btn primary" href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener noreferrer">افتح في ${esc(o.shop)} ↗</a></p>`,
+    `<button class="btn" id="favb">${favs.has(o.id) ? "★" : "☆"}</button> <button class="btn" id="copyb" title="نسخ الملخص">⧉</button>`);
+  $("#favb").onclick = () => { favs.has(o.id) ? favs.delete(o.id) : favs.add(o.id); LS.set("favs", [...favs]); $("#favb").textContent = favs.has(o.id) ? "★" : "☆"; render(); };
+  $("#copyb").onclick = () => navigator.clipboard?.writeText(`${o.device} ${gb(o.storage)} – ${o.shop}\n${o.tariff} (${gb(o.data)}, ${o.network})\nالدفعة الأولى ${euro(o.upfront)}، شهرياً ${euro(o.monthly)}${o.later != null ? ` ثم ${euro(o.later)} من الشهر ${o.laterFrom}` : ""}، المجموع ${euro(o.total)}${o.bonus > 0 ? `، بعد المكافآت ${euro(o.net)}` : ""}\n${o.url}`);
+}
+
+$("#cmpbtn").onclick = () => {
+  const L = [...cmp.values()];
+  const rows = [
+    ["المتجر", (o) => esc(o.shop)], ["الذاكرة", (o) => gb(o.storage), (o) => o.storage, 1], ["RAM", (o) => (o.ram ? ltr(o.ram + " GB") : "؟"), (o) => o.ram, 1],
+    ["المعالج", (o) => esc(o.chip || "؟")], ["نقاط المعالج", (o) => o.score ?? "؟", (o) => o.score, 1], ["فئة الأداء", (o) => esc(o.tier)],
+    ["التعرفة", (o) => esc(o.tariff)], ["الشبكة", (o) => esc(o.network)], ["الإنترنت", (o) => gb(o.data), (o) => o.data, 1],
+    ["السرعة", (o) => (o.speed ? o.speed + " Mbit/s" : "—"), (o) => o.speed, 1], ["المدة", (o) => o.months + " شهراً"],
+    ["الدفعة الأولى", (o) => euro(o.upfront), (o) => o.upfront], ["الشهري", (o) => euro(o.monthly), (o) => o.monthly],
+    ["الدفعة اللاحقة", (o) => (o.later == null ? "—" : `${euro(o.later)} من ش${o.laterFrom}`)], ["التفعيل", (o) => euro(o.connection), (o) => o.connection],
+    ["الإرسال", (o) => euro(o.shipping), (o) => o.shipping], ["الإجمالي", (o) => euro(o.total), (o) => o.total],
+    ["المكافآت", (o) => (o.bonus ? euro(o.bonus) : "—"), (o) => o.bonus, 1], ["بعد المكافآت", (o) => euro(o.net), (o) => o.net],
+    ["أداء/100 €", (o) => (o.perf ? o.perf.toFixed(2) : "—"), (o) => o.perf, 1], ["للشباب", (o) => (o.young ? "نعم" : "لا")], ["المصدر", (o) => esc(KIND[o.kind] || o.kind)],
+  ];
+  const best = (n, hi, o) => {
+    if (!n) return false;
+    const v = L.map(n).filter((x) => x != null);
+    if (new Set(v).size < 2 || n(o) == null) return false;
+    return n(o) === (hi ? Math.max(...v) : Math.min(...v));
+  };
+  openDlg(`مقارنة ${L.length} عروض`, `<div class="cmpwrap"><table class="cmp"><tr><th></th>${L.map((o) => `<th><a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener">${esc(o.device)}</a></th>`).join("")}</tr>
+    ${rows.map(([k, v, n, hi]) => `<tr><td>${k}</td>${L.map((o) => `<td class="${best(n, hi, o) ? "best" : ""}">${v(o)}</td>`).join("")}</tr>`).join("")}</table></div>
+    <p><button class="btn" id="cmpclear">إفراغ المقارنة</button></p>`);
+  $("#cmpclear").onclick = () => { cmp.clear(); dlg.close(); render(); };
+};
+
+// ---------- filter panel ----------
+function filters() {
+  const count = (fn) => { const m = new Map(); ALL.forEach((o) => { const v = fn(o); if (v != null && v !== "") m.set(v, (m.get(v) || 0) + 1); }); return m; };
+  const chips = (title, key, m, label = (x) => x, order = null, max = 60) => {
+    const keys = order ? order.filter((k) => m.has(k)) : [...m.keys()].sort((a, b) => m.get(b) - m.get(a));
+    if (!keys.length) return "";
+    return `<div class="sec"><h3 class="${F[key].length ? "on" : ""}">${title}${F[key].length ? `<a data-clear="${key}">مسح</a>` : ""}</h3><div class="chips">${keys.slice(0, max).map((k) =>
+      `<button class="chip${F[key].includes(k) ? " on" : ""}" data-set="${key}" data-v="${esc(JSON.stringify(k))}">${esc(label(k))} (${m.get(k)})</button>`).join("")}</div></div>`;
+  };
+  const range = (title, key, fn) => {
+    if (!ALL.length) return "";
+    const v = ALL.map(fn).filter((x) => x != null);
+    const lo = Math.floor(Math.min(...v)), hi = Math.ceil(Math.max(...v));
+    const r = F[key] || [lo, hi];
+    return `<div class="sec"><h3 class="${F[key] ? "on" : ""}">${title}${F[key] ? `<a data-clearr="${key}">مسح</a>` : ""}</h3><div class="rng">
+      من <input type="number" data-r="${key}" data-side="0" value="${r[0]}" min="${lo}" max="${hi}" step="1"> إلى <input type="number" data-r="${key}" data-side="1" value="${r[1]}" min="${lo}" max="${hi}" step="1"> €</div></div>`;
+  };
+  const toggles = [["best", "أفضل عرض لكل جهاز"], ["onlyBonus", "مع مكافأة"], ["onlyFav", "المفضلة"], ["onlyNew", "جديد (3 أيام)"], ["onlyCheaper", "صار أرخص"], ["hideExpired", "إخفاء المنتهية"]];
+  const choice = (title, key, opts, fmt) => `<div class="sec"><h3 class="${F[key] ? "on" : ""}">${title}</h3><div class="chips">${opts.map((v) => `<button class="chip${F[key] === v ? " on" : ""}" data-pick="${key}" data-v="${esc(JSON.stringify(v))}">${fmt(v)}</button>`).join("")}</div></div>`;
+  const st = count((o) => o.storage);
+  openDlg("الفلاتر",
+    `<div class="sec"><h3>خيارات سريعة</h3><div class="chips">${toggles.map(([k, l]) => `<button class="chip${F[k] ? " on" : ""}" data-tog="${k}">${l}</button>`).join("")}</div></div>
+    ${chips("الماركة", "brands", count((o) => o.brand))}
+    ${chips("الشبكة", "networks", count((o) => o.network), undefined, ["Telekom", "Vodafone", "o2"])}
+    ${chips("الذاكرة", "storages", st, gb, [...st.keys()].sort((a, b) => a - b))}
+    ${F.storages.length ? `<div class="chips"><button class="chip${F.unknownStorage ? " on" : ""}" data-tog="unknownStorage">أظهر العروض التي لا تذكر الذاكرة</button></div>` : ""}
+    ${choice("باقة الإنترنت", "dataMin", [0, 20, 50, 100, 150, 200, 300, 9999], (d) => (d === 0 ? "الكل" : d >= 9999 ? "∞ غير محدود" : ltr(d + "+ GB")))}
+    ${range("الدفعة الأولى", "upfront", (o) => o.upfront)}
+    ${range("القسط الشهري", "monthly", (o) => o.monthly)}
+    ${range("الإجمالي بعد المكافآت", "net", (o) => o.net)}
+    ${choice("تعرفات الشباب", "young", ["all", "hide", "only"], (v) => ({ all: "الكل", hide: "إخفاء", only: "فقط" }[v]))}
+    ${chips("فئة الأداء", "tiers", count((o) => o.tier), tierShort, TIERS)}
+    ${choice("أقل نقاط معالج", "cpuMin", [0, 20, 32, 40, 50, 65, 85], (v) => (v ? v + "+" : "الكل"))}
+    ${choice("أقل RAM", "ramMin", [0, 6, 8, 12, 16], (v) => (v ? ltr(v + " GB") : "الكل"))}
+    ${chips("المتجر", "shops", count((o) => o.shop))}
+    ${chips("المزوّد", "providers", count((o) => o.provider))}
+    ${chips("مدة العقد (شهر)", "months", count((o) => o.months))}
+    ${chips("نوع المصدر", "kinds", count((o) => o.kind), (k) => KIND[k] || k)}
+    ${chips("الجهاز", "devices", count((o) => o.device), undefined, null, 200)}`,
+    `<button class="btn" id="mine">شروطي</button> <button class="btn" id="fclear">مسح الكل</button>`);
+  $("#mine").onclick = () => { myCriteria(); apply(); filters(); };
+  $("#fclear").onclick = () => { F = Object.assign(freshFilters(), { sort: F.sort }); apply(); filters(); };
+}
+$("#dbody").addEventListener("click", (e) => {
+  const t = e.target, d = t.dataset;
+  if (!$("#dtitle").textContent.startsWith("الفلاتر")) return;
+  let hit = true;
+  if (d.set) { const v = JSON.parse(d.v), a = F[d.set], i = a.indexOf(v); i >= 0 ? a.splice(i, 1) : a.push(v); }
+  else if (d.clear) F[d.clear] = [];
+  else if (d.clearr) F[d.clearr] = null;
+  else if (d.tog) F[d.tog] = !F[d.tog];
+  else if (d.pick) F[d.pick] = JSON.parse(d.v);
+  else hit = false;
+  if (hit) { const top = $("#dlg").scrollTop; apply(); filters(); $("#dlg").scrollTop = top; }
+});
+$("#dbody").addEventListener("change", (e) => {
+  const d = e.target.dataset;
+  if (!d.r) return;
+  const ins = [...document.querySelectorAll(`[data-r="${d.r}"]`)];
+  const lo = +ins[0].min, hi = +ins[0].max, a = +ins[0].value, b = +ins[1].value;
+  F[d.r] = a <= lo && b >= hi ? null : [Math.min(a, b), Math.max(a, b)];
+  const top = $("#dlg").scrollTop; apply(); filters(); $("#dlg").scrollTop = top;
+});
+$("#fbtn").onclick = () => ALL.length && filters();
+
+// ---------- data: same folder, or the private repo through the GitHub API ----------
+async function api(path, opts = {}) {
+  const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(gh.owner)}/${encodeURIComponent(gh.repo)}${path}`, {
+    ...opts, headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(gh.token ? { Authorization: "Bearer " + gh.token } : {}), ...(opts.headers || {}) },
+  });
+  if (!r.ok && r.status !== 204) throw new Error(r.status === 401 ? "الرمز غير صحيح أو منتهي" : r.status === 403 ? "الرمز لا يملك الصلاحية المطلوبة" : r.status === 404 ? "المستودع أو الملف غير موجود، أو يحتاج رمزاً" : "GitHub " + r.status);
+  return r;
+}
+function useData(text, where) {
+  const j = JSON.parse(text);
+  META = { generated: j.generated, where: j.where, stats: j.stats || {}, from: where };
+  ALL = j.offers.map(prep).filter((o) => o.upfront != null && o.monthly != null);
+  PAGE = 60;
+  apply();
+}
+async function load() {
+  $("#status").textContent = "جاري تحميل النتائج...";
+  try {
+    if (location.protocol.startsWith("http")) {
+      const r = await fetch("data/offers.json", { cache: "no-cache" });
+      if (r.ok) return useData(await r.text(), "same");
+    }
+  } catch {}
+  if (gh.owner && gh.repo) {
+    try {
+      const r = await api(`/contents/data/offers.json?ref=${encodeURIComponent(gh.branch)}`, { headers: { Accept: "application/vnd.github.raw+json" }, cache: "no-cache" });
+      return useData(await r.text(), "api");
+    } catch (e) {
+      $("#status").innerHTML = `<span class="err">${esc(e.message)}</span>`;
+      return settings();
+    }
+  }
+  $("#status").textContent = "لم تُحمَّل نتائج بعد.";
+  settings();
+}
+
+function settings(msg = "") {
+  const stats = META?.stats ? Object.values(META.stats).map((s) => `${esc(s.name)}: ${s.count}${s.error ? ' <span class="err">' + esc(s.error) + "</span>" : ""}`).join("<br>") : "";
+  openDlg("الإعدادات",
+    `<p class="note">الصفحة تقرأ نتائج البحث من مستودعك على GitHub. البحث نفسه يتم على كمبيوتر GitHub، لأن المتصفح لا يُسمح له بقراءة مواقع المتاجر مباشرة.</p>
+    <label class="f">اسم حسابك على GitHub</label><input class="t" id="g_owner" value="${esc(gh.owner)}">
+    <label class="f">اسم المستودع</label><input class="t" id="g_repo" value="${esc(gh.repo)}">
+    <label class="f">الفرع</label><input class="t" id="g_branch" value="${esc(gh.branch)}">
+    <label class="f">رمز الوصول (Fine-grained token)</label><input class="t" id="g_token" type="password" value="${esc(gh.token)}" autocomplete="off">
+    <p class="note">يُحفظ في هذا المتصفح فقط. للقراءة يكفي رمز بصلاحية Contents: Read. لزر «ابحث الآن» يلزم Actions: Read and write.</p>
+    <p><button class="btn primary" id="g_save">احفظ وحمّل النتائج</button> <button class="btn" id="g_run">ابحث الآن على GitHub</button></p>
+    <p id="g_msg" class="note">${esc(msg)}</p>
+    <label class="f">أو افتح ملف نتائج من جهازك (offers.json)</label><input type="file" id="g_file" accept=".json,application/json">
+    ${stats ? `<div class="sec"><h3>المصادر في آخر بحث</h3><p class="note">${stats}</p></div>` : ""}
+    <div class="sec"><h3>المظهر</h3><div class="chips">${[["auto", "تلقائي"], ["light", "فاتح"], ["dark", "داكن"]].map(([v, l]) => `<button class="chip${(LS.get("theme", "auto")) === v ? " on" : ""}" data-theme-set="${v}">${l}</button>`).join("")}</div></div>`);
+  const read = () => { gh = { owner: $("#g_owner").value.trim(), repo: $("#g_repo").value.trim(), branch: $("#g_branch").value.trim() || "main", token: $("#g_token").value.trim() }; LS.set("github", gh); };
+  $("#g_save").onclick = () => { read(); dlg.close(); load(); };
+  $("#g_run").onclick = () => { read(); runSearch(); };
+  $("#g_file").onchange = async (e) => { const f = e.target.files[0]; if (!f) return; try { useData(await f.text(), "file"); dlg.close(); } catch { $("#g_msg").textContent = "الملف ليس ملف نتائج صالحاً."; } };
+  $("#dbody").querySelectorAll("[data-theme-set]").forEach((b) => (b.onclick = () => { setTheme(b.dataset.themeSet); settings(); }));
+}
+
+async function runSearch() {
+  const msg = (t) => { const el = $("#g_msg"); if (el) el.textContent = t; $("#status").textContent = t; };
+  if (!gh.owner || !gh.token) return msg("أدخل اسم الحساب والرمز أولاً.");
+  try {
+    const before = Date.now() - 5000;
+    await api("/actions/workflows/search.yml/dispatches", { method: "POST", body: JSON.stringify({ ref: gh.branch }) });
+    msg("بدأ البحث على GitHub. يستغرق عادة 5 إلى 15 دقيقة، ويمكنك ترك الصفحة مفتوحة.");
+    for (let i = 0; i < 120; i++) {
+      await new Promise((r) => setTimeout(r, 15000));
+      const runs = (await (await api(`/actions/workflows/search.yml/runs?per_page=1&branch=${encodeURIComponent(gh.branch)}`)).json()).workflow_runs;
+      const run = runs && runs[0];
+      if (!run || new Date(run.created_at) < before) continue;
+      msg(run.status === "queued" ? "على GitHub: في الانتظار..." : run.status === "in_progress" ? "على GitHub: يبحث الآن..." : "على GitHub: انتهى.");
+      if (run.status === "completed") {
+        if (run.conclusion !== "success") return msg("فشل البحث على GitHub. افتح صفحة Actions في المستودع لمعرفة السبب.");
+        await new Promise((r) => setTimeout(r, 5000));
+        return load();
+      }
+    }
+  } catch (e) { msg(e.message); }
+}
+
+// ---------- theme, sort, search box ----------
+function setTheme(t) { LS.set("theme", t); if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t; }
+setTheme(LS.get("theme", "auto"));
+$("#sort").innerHTML = Object.entries(SORTS).map(([k, [l]]) => `<option value="${k}">${l}</option>`).join("");
+$("#sort").value = F.sort;
+$("#sort").onchange = (e) => { F.sort = e.target.value; apply(); };
+let qt;
+$("#q").oninput = () => { clearTimeout(qt); qt = setTimeout(apply, 150); };
+$("#sbtn").onclick = () => settings();
+load();
+</script>
+</body>
+</html>
