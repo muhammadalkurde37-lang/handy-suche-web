@@ -27,6 +27,9 @@ header{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px 
 select.btn{max-width:210px}
 main{max-width:1100px;margin:auto;padding:12px 16px 120px}
 .status{color:var(--muted);font-size:13px;margin:4px 0 8px}
+.mode{display:grid;grid-template-columns:1fr 1fr;gap:0;margin:8px 0 2px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mode button{border:0;background:transparent;color:inherit;padding:9px 6px;font:inherit;font-size:14px;cursor:pointer}
+.mode button.on{background:var(--chip);font-weight:700;box-shadow:inset 0 -3px 0 currentColor}
 .status b{color:var(--text)}
 .chips{display:flex;gap:6px;flex-wrap:wrap}
 .chip{border:1px solid var(--line);background:var(--chip);border-radius:999px;padding:5px 11px;font-size:13px}
@@ -98,6 +101,7 @@ a{color:var(--accent)}
   </div>
 </header>
 <main>
+  <div id="mode" class="mode" role="tablist"><button data-mode="0" role="tab">📱 جهاز مع خط</button><button data-mode="1" role="tab">💳 خط فقط</button></div>
   <div id="status" class="status">جاري التحميل...</div>
   <div id="quick" class="chips"></div>
   <div id="ins" class="insights"></div>
@@ -126,6 +130,9 @@ const ltr = (s) => "\u2066" + s + "\u2069";
 const euro = (v) => (v == null ? "—" : ltr((Math.round(v * 100) / 100).toLocaleString("de-DE", { minimumFractionDigits: v % 1 ? 2 : 0, maximumFractionDigits: 2 }) + " €"));
 const gb = (v) => (v == null ? "؟" : v >= 9999 ? "غير محدود" : ltr(v >= 1024 ? v / 1024 + " TB" : v + " GB"));
 const day = (d) => (d ? `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}` : "—");
+const SIMK = { contract: "عقد بمدة (12 أو 24 شهراً)", flex: "شهري، يُلغى في أي وقت", prepaid: "مسبق الدفع (باقة)", payg: "حسب الاستهلاك (بدون رسوم أساسية)", trial: "شريحة تجربة / تعارف" };
+const SIMKS = { contract: "عقد بمدة", flex: "شهري", prepaid: "مسبق الدفع", payg: "حسب الاستهلاك", trial: "تجربة / تعارف" };
+const PKG = ["contract", "flex", "prepaid"]; // fixed price per month or period; the others cost what you use
 const KIND = { live: "مباشر من المتجر", portal: "عبر بوابة مقارنة", blog: "مقال عرض", custom: "موقع أضفته (تقديري)" };
 const TIERS = ["1 رائد (الأقوى)", "2 رائد سابق", "3 متوسط عالٍ", "4 متوسط", "5 متوسط اقتصادي", "6 اقتصادي", "غير معروف"];
 const tierOf = (s) => (s == null ? TIERS[6] : s >= 85 ? TIERS[0] : s >= 65 ? TIERS[1] : s >= 50 ? TIERS[2] : s >= 32 ? TIERS[3] : s >= 20 ? TIERS[4] : TIERS[5]);
@@ -146,38 +153,46 @@ function prep(j) {
     laterFrom: j.m2f ?? null, connection: j.con || 0, shipping: j.ship || 0, bonus: j.bon || 0, bonusText: j.bt || "",
     published: j.pub ? new Date(j.pub) : null, until: j.until ? new Date(j.until) : null, url: j.url || "",
     fetched: j.at ? new Date(j.at) : null, first: j.first ? new Date(j.first) : null, prev: j.prev ?? null, score: j.cs ?? null,
+    sim: j.sk || "", periodDays: j.pd ?? null, periodPrice: j.pp ?? null, perMb: j.pmb ?? null, startCredit: j.sc || 0, facts: j.fx || {},
   };
+  // SIM-only tariffs without a 24-month term are compared over 24 months too (see model.dart span)
+  o.span = o.sim && o.months < 24 ? 24 : o.months;
+  o.title = o.sim ? `${o.provider} ${o.tariff}`.trim() : o.device;
   const m = o.monthly || 0;
-  o.monthlySum = o.later != null && o.laterFrom > 1 && o.laterFrom <= o.months ? m * (o.laterFrom - 1) + o.later * (o.months - o.laterFrom + 1) : m * o.months;
+  o.monthlySum = o.later != null && o.laterFrom > 1 && o.laterFrom <= o.span ? m * (o.laterFrom - 1) + o.later * (o.span - o.laterFrom + 1) : m * o.span;
   o.total = (o.upfront || 0) + o.connection + o.shipping + o.monthlySum;
   o.net = o.total - o.bonus;
-  o.avg = o.total / o.months; // everything paid, spread evenly over the term
-  o.avgNet = o.net / o.months;
+  o.avg = o.total / o.span; // everything paid, spread evenly over the term
+  o.avgNet = o.net / o.span;
+  o.perGb = o.data > 0 && o.data < 9999 ? o.avg / o.data : null;
   o.perf = o.score != null && o.net > 0 ? (o.score / o.net) * 100 : null;
   o.tier = tierOf(o.score);
-  o.id = [o.shop.toLowerCase(), devKey(o.device), o.storage ?? "", o.provider.toLowerCase(), o.tariff.toLowerCase().replace(/\s+/g, " "), o.months, o.young ? "y" : ""].join("|");
+  o.id = [o.shop.toLowerCase(), devKey(o.device), o.storage ?? "", o.provider.toLowerCase(), o.tariff.toLowerCase().replace(/\s+/g, " "), o.months, o.young ? "y" : "", ...(o.sim ? [o.sim] : [])].join("|");
   o.expired = (o.until && o.until < Date.now() - 864e5) || o.bonusText.includes("انتهى");
-  o.hay = `${o.device} ${o.shop} ${o.tariff} ${o.chip} ${o.provider} ${o.network}`.toLowerCase();
+  o.hay = `${o.title} ${o.shop} ${o.tariff} ${o.chip} ${o.provider} ${o.network}`.toLowerCase();
   return o;
 }
 
 // ---------- state ----------
 const SORTS = {
   net: ["الأرخص بعد المكافآت", (o) => o.net], total: ["الأرخص (المجموع الكامل)", (o) => o.total], monthly: ["أقل قسط شهري", (o) => o.monthly],
-  upfront: ["أقل دفعة أولى", (o) => o.upfront], avg: ["أقل متوسط شهري", (o) => o.avg], perf: ["أفضل أداء مقابل السعر", (o) => o.perf, 1],
+  upfront: ["أقل دفعة أولى", (o) => o.upfront], avg: ["أقل متوسط شهري", (o) => o.avg], perGb: ["أرخص سعر لكل GB", (o) => o.perGb], perf: ["أفضل أداء مقابل السعر", (o) => o.perf, 1],
   cpu: ["أقوى معالج", (o) => o.score, 1], ram: ["أكبر RAM", (o) => o.ram, 1], storage: ["أكبر ذاكرة", (o) => o.storage, 1],
   data: ["أكبر باقة إنترنت", (o) => o.data, 1], drop: ["أكبر انخفاض في السعر", (o) => (o.prev == null ? null : o.prev - o.net), 1],
   newest: ["الأحدث ظهوراً", (o) => o.first?.getTime() ?? null, 1], published: ["تاريخ النشر", (o) => o.published?.getTime() ?? null, 1],
 };
-const SETS = ["brands", "devices", "networks", "providers", "shops", "kinds", "tiers", "storages", "months"];
+const SETS = ["brands", "devices", "networks", "providers", "shops", "kinds", "tiers", "storages", "months", "simKinds"];
 function freshFilters() {
   const f = { q: "", dataMin: 0, cpuMin: 0, ramMin: 0, upfront: null, monthly: null, net: null, avg: null, young: "all", onlyBonus: false, onlyFav: false,
-    onlyNew: false, onlyCheaper: false, hideExpired: true, unknownStorage: true, best: false, sort: "net" };
+    onlyNew: false, onlyCheaper: false, hideExpired: true, unknownStorage: true, best: false, sort: "net", simMode: false };
   SETS.forEach((k) => (f[k] = []));
   return f;
 }
 let F = Object.assign(freshFilters(), LS.get("filters", {}));
 F.q = "";
+SETS.forEach((k) => (F[k] = Array.isArray(F[k]) ? F[k] : []));
+// clears the filters but keeps the sort order and the mode (phone + contract / SIM only)
+const cleared = () => Object.assign(freshFilters(), { sort: F.sort, simMode: F.simMode });
 let ALL = [], SHOWN = [], META = null, PAGE = 60;
 const favs = new Set(LS.get("favs", []));
 const cmp = new Map();
@@ -189,16 +204,22 @@ function activeCount() {
 }
 
 function myCriteria() {
-  const s = F.sort; F = freshFilters(); F.sort = s;
-  F.networks = ["Telekom"]; F.dataMin = 100; F.storages = [256, 512, 1024]; F.unknownStorage = false; F.upfront = [0, 100]; F.young = "hide";
+  F = cleared();
+  F.networks = ["Telekom"]; F.dataMin = 100; F.young = "hide";
+  if (!F.simMode) { F.storages = [256, 512, 1024]; F.unknownStorage = false; F.upfront = [0, 100]; }
 }
-const isMine = () => F.networks.join() === "Telekom" && F.dataMin >= 100 && F.upfront && F.upfront[1] === 100;
+const isMine = () => F.networks.join() === "Telekom" && F.dataMin >= 100 && (F.simMode || (F.upfront && F.upfront[1] === 100));
+const inMode = (o) => !!o.sim === !!F.simMode;
+const MODE = () => ALL.filter(inMode);
 
 function apply() {
   const words = $("#q").value.trim().toLowerCase().split(/\s+/).filter(Boolean);
   const now = Date.now();
   const inR = (r, v) => !r || ((v ?? 0) >= r[0] - 0.001 && (v ?? 0) <= r[1] + 0.001);
   let out = ALL.filter((o) => {
+    if (!inMode(o)) return false;
+    // no type chosen: packages only (pay-as-you-go and trial SIMs would always look cheapest)
+    if (o.sim && (F.simKinds.length ? !F.simKinds.includes(o.sim) : !PKG.includes(o.sim))) return false;
     if (words.length && !words.every((w) => o.hay.includes(w))) return false;
     if (F.brands.length && !F.brands.includes(o.brand)) return false;
     if (F.devices.length && !F.devices.includes(o.device)) return false;
@@ -230,7 +251,7 @@ function apply() {
     if (y == null) return -1;
     return (desc ? y - x : x - y) || a.net - b.net;
   });
-  if (F.best) { const seen = new Set(); out = out.filter((o) => { const k = devKey(o.device) + "|" + o.storage; return !seen.has(k) && seen.add(k); }); }
+  if (F.best) { const seen = new Set(); out = out.filter((o) => { const k = o.sim ? o.provider.toLowerCase() : devKey(o.device) + "|" + o.storage; return !seen.has(k) && seen.add(k); }); }
   SHOWN = out;
   LS.set("filters", F);
   render();
@@ -243,6 +264,7 @@ function tags(o) {
   if (o.first && now - o.first <= 3 * 864e5 && o.prev == null) t.push(["جديد", "a"]);
   if (o.prev != null && o.prev > o.net + 0.009) t.push(["▼ أرخص بـ " + euro(o.prev - o.net), "g"]);
   if (o.prev != null && o.prev < o.net - 0.009) t.push(["▲ أغلى بـ " + euro(o.net - o.prev), "r"]);
+  if (o.sim) t.push(["💳 " + (SIMK[o.sim] || o.sim), "a"]);
   if (o.young) t.push(["للشباب فقط", "w"]);
   if (o.bonus > 0) t.push(["مكافأة " + euro(o.bonus), "g"]);
   if (o.later != null) t.push(["السعر يتغير من الشهر " + o.laterFrom, "w"]);
@@ -253,7 +275,28 @@ function tags(o) {
 }
 const cpuBar = (o) => `<div class="cpu"><i><b style="width:${o.score || 0}%;background:${tierColor(o.score)}"></b></i><span style="color:${tierColor(o.score)}">${o.score ?? "؟"}</span></div>`;
 
+function simCard(o, i) {
+  return `<div class="card${cmp.has(o.id + o.net) ? " sel" : ""}" data-i="${i}">
+    <div class="row"><div class="title">${esc(o.title)}${o.data != null ? " · " + gb(o.data) : ""}</div>
+      <input type="checkbox" data-cmp="${i}" title="للمقارنة" ${cmp.has(o.id + o.net) ? "checked" : ""}></div>
+    <div class="sub">${esc(o.network ? o.network + " · " : "")}${o.speed ? o.speed + " Mbit/s · " : ""}${esc(SIMK[o.sim] || "")}${o.months > 1 ? " · " + o.months + " شهراً" : ""}</div>
+    <div class="prices">${simPrices(o).map(([l, v], k, a) => `<div><small>${esc(l)}</small>${k === a.length - 1 ? `<span class="tot">${v}</span>` : v}</div>`).join("")}</div>
+    <div class="tags">${tags(o)}</div></div>`;
+}
+// the prices that matter for each kind of SIM, in the provider's own billing period
+const ct = (v) => ltr((Math.round(v * 1000) / 10).toLocaleString("de-DE") + " ct");
+function simPrices(o) {
+  const f = (k) => esc(o.facts[k] || "—");
+  if (o.sim === "payg") return [["الشريحة", euro(o.connection + o.shipping)], ["رصيد البداية", o.startCredit ? euro(o.startCredit) : "—"], ["لكل MB", o.perMb != null ? ct(o.perMb) : "—"], ["الدقيقة", f("المكالمات إلى الموبايل")]];
+  if (o.sim === "trial") return [["الشريحة", o.connection ? euro(o.connection) : "مجاناً"], ["رصيد البداية", o.startCredit ? euro(o.startCredit) : "—"], ["رسوم أساسية", o.monthly ? euro(o.monthly) : "لا"], ["الدقيقة / SMS", f("الدقيقة / SMS")]];
+  if (o.periodDays && o.periodPrice != null) {
+    const n = Math.floor(365 / o.periodDays);
+    return [["الشريحة", euro(o.connection + o.shipping)], [`كل ${o.periodDays} يوماً`, euro(o.periodPrice)], [`في السنة (${n}×)`, euro(o.periodPrice * n)], ["≈ شهرياً", euro(o.monthly)]];
+  }
+  return [["التفعيل", euro(o.connection + o.shipping)], ["شهرياً", euro(o.monthly) + (o.later != null ? " ثم " + euro(o.later) : "")], ["متوسط/شهر", euro(o.avg)], [o.bonus > 0 ? "24 شهراً بعد المكافآت" : "24 شهراً", euro(o.net)]];
+}
 function card(o, i) {
+  if (o.sim) return simCard(o, i);
   return `<div class="card${cmp.has(o.id) ? " sel" : ""}" data-i="${i}">
     <div class="row"><div class="title">${esc(o.device)} · ${gb(o.storage)}${o.ram ? " · " + ltr(o.ram + "GB RAM") : ""}</div>
       <input type="checkbox" data-cmp="${i}" title="للمقارنة" ${cmp.has(o.id) ? "checked" : ""}></div>
@@ -268,18 +311,21 @@ function card(o, i) {
 }
 
 function render() {
-  const total = ALL.length;
+  const total = MODE().length;
+  document.querySelectorAll("#mode button").forEach((b) => b.classList.toggle("on", (b.dataset.mode === "1") === !!F.simMode));
   if (META) {
     const g = new Date(META.generated), age = (Date.now() - g) / 36e5;
-    $("#status").innerHTML = `<b>${SHOWN.length}</b> من ${total} عرض · ${esc(SORTS[F.sort][0])} · آخر بحث ${day(g)} ${g.getHours()}:${String(g.getMinutes()).padStart(2, "0")} (${META.where === "github" ? "GitHub" : "الهاتف"})${age >= 24 ? ' · <span class="err">قديم، ابحث من جديد</span>' : ""}`;
+    $("#status").innerHTML = `<b>${SHOWN.length}</b> من ${total} ${F.simMode ? "تعرفة" : "عرض"} · ${esc(SORTS[F.sort][0])} · آخر بحث ${day(g)} ${g.getHours()}:${String(g.getMinutes()).padStart(2, "0")} (${META.where === "github" ? "GitHub" : "الهاتف"})${age >= 24 ? ' · <span class="err">قديم، ابحث من جديد</span>' : ""}`;
   }
   $("#fbtn").textContent = activeCount() ? `الفلاتر (${activeCount()})` : "الفلاتر";
   const quick = [
-    ["شروطي", isMine(), () => (isMine() ? (F = Object.assign(freshFilters(), { sort: F.sort })) : myCriteria())],
+    ["شروطي", isMine(), () => (isMine() ? (F = cleared()) : myCriteria())],
     ["Telekom", F.networks.join() === "Telekom", () => (F.networks = F.networks.join() === "Telekom" ? [] : ["Telekom"])],
     ["100GB+", F.dataMin >= 100, () => (F.dataMin = F.dataMin >= 100 ? 0 : 100)],
-    ["دفعة ≤100 €", F.upfront && F.upfront[1] === 100, () => (F.upfront = F.upfront && F.upfront[1] === 100 ? null : [0, 100])],
-    ["أفضل عرض لكل جهاز", F.best, () => (F.best = !F.best)],
+    ...(F.simMode
+      ? Object.entries(SIMKS).map(([k, l]) => [l, F.simKinds.includes(k), () => (F.simKinds = F.simKinds.includes(k) ? F.simKinds.filter((x) => x !== k) : [...F.simKinds, k])])
+      : [["دفعة ≤100 €", F.upfront && F.upfront[1] === 100, () => (F.upfront = F.upfront && F.upfront[1] === 100 ? null : [0, 100])]]),
+    [F.simMode ? "أرخص تعرفة لكل مزوّد" : "أفضل عرض لكل جهاز", F.best, () => (F.best = !F.best)],
     ["بدون تعرفات الشباب", F.young === "hide", () => (F.young = F.young === "hide" ? "all" : "hide")],
     ["صار أرخص", F.onlyCheaper, () => (F.onlyCheaper = !F.onlyCheaper)],
     ["المفضلة", F.onlyFav, () => (F.onlyFav = !F.onlyFav)],
@@ -289,11 +335,19 @@ function render() {
 
   if (SHOWN.length) {
     const cheapest = SHOWN.reduce((a, b) => (b.net < a.net ? b : a));
-    const wp = SHOWN.filter((o) => o.perf != null);
-    const value = wp.length ? wp.reduce((a, b) => (b.perf > a.perf ? b : a)) : null;
-    const strong = wp.length ? wp.reduce((a, b) => (b.score > a.score || (b.score === a.score && b.net < a.net) ? b : a)) : null;
-    const ins = [["💰 الأرخص", cheapest], ["⚖️ أفضل قيمة", value], ["⚡ الأقوى", strong]].filter((x) => x[1]);
-    $("#ins").innerHTML = ins.map(([t, o]) => `<div class="ins" data-id="${esc(o.id)}" data-net="${o.net}"><small>${t}</small><div>${esc(o.device)} ${gb(o.storage)}</div><span class="note">${euro(o.net)} · ${esc(o.shop)}</span></div>`).join("");
+    let ins;
+    if (F.simMode) {
+      const pg = SHOWN.filter((o) => o.perGb != null), un = SHOWN.filter((o) => o.data >= 9999);
+      ins = [["💰 الأرخص", cheapest], ["⚖️ أرخص لكل GB", pg.length ? pg.reduce((a, b) => (b.perGb < a.perGb ? b : a)) : null],
+        ["♾️ أرخص غير محدود", un.length ? un.reduce((a, b) => (b.net < a.net ? b : a)) : null]];
+    } else {
+      const wp = SHOWN.filter((o) => o.perf != null);
+      const value = wp.length ? wp.reduce((a, b) => (b.perf > a.perf ? b : a)) : null;
+      const strong = wp.length ? wp.reduce((a, b) => (b.score > a.score || (b.score === a.score && b.net < a.net) ? b : a)) : null;
+      ins = [["💰 الأرخص", cheapest], ["⚖️ أفضل قيمة", value], ["⚡ الأقوى", strong]];
+    }
+    ins = ins.filter((x) => x[1]);
+    $("#ins").innerHTML = ins.map(([t, o]) => `<div class="ins" data-id="${esc(o.id)}" data-net="${o.net}"><small>${t}</small><div>${esc(o.title)} ${gb(o.sim ? o.data : o.storage)}</div><span class="note">${o.sim ? euro(o.avgNet) + "/شهر · " + esc(o.network) : euro(o.net) + " · " + esc(o.shop)}</span></div>`).join("");
     $("#ins").onclick = (e) => { const el = e.target.closest(".ins"); if (el) details(SHOWN.find((o) => o.id === el.dataset.id && String(o.net) === el.dataset.net)); };
   } else $("#ins").innerHTML = "";
 
@@ -301,7 +355,9 @@ function render() {
   $("#more").hidden = SHOWN.length <= PAGE;
   $("#more").textContent = `أظهر المزيد (${SHOWN.length - PAGE} متبقٍ)`;
   $("#empty").hidden = SHOWN.length > 0 || !META;
-  $("#empty").textContent = "لا توجد عروض بهذه الفلاتر. خفّف الفلاتر أو اضغط شروطي مرة أخرى لإلغائها.";
+  $("#empty").textContent = F.simMode && !total
+    ? "لا توجد تعرفات خط في آخر بحث. شغّل بحثاً جديداً من التطبيق أو من GitHub (مصدر \"خطوط بدون جهاز\")."
+    : "لا توجد عروض بهذه الفلاتر. خفّف الفلاتر أو اضغط شروطي مرة أخرى لإلغائها.";
   renderCmp();
 }
 function renderCmp() {
@@ -322,6 +378,7 @@ $("#list").addEventListener("click", (e) => {
   if (c) details(SHOWN[c.dataset.i]);
 });
 $("#more").onclick = () => { PAGE += 60; render(); };
+$("#mode").onclick = (e) => { const b = e.target.closest("[data-mode]"); if (!b) return; F.simMode = b.dataset.mode === "1"; cmp.clear(); PAGE = 60; apply(); };
 
 // ---------- dialogs ----------
 const dlg = $("#dlg");
@@ -337,28 +394,31 @@ function openDlg(title, body, actions = "") {
 function details(o) {
   if (!o) return;
   const kv = (rows) => `<table class="kv">${rows.filter(Boolean).map(([k, v, s]) => `<tr${s ? ' class="strong"' : ""}><td>${esc(k)}</td><td>${v}</td></tr>`).join("")}</table>`;
-  const first = o.laterFrom ? o.laterFrom - 1 : o.months;
-  const same = ALL.filter((x) => x !== o && devKey(x.device) === devKey(o.device) && x.storage === o.storage && !x.expired).sort((a, b) => a.net - b.net).slice(0, 8);
-  openDlg(o.device,
+  const first = o.laterFrom ? o.laterFrom - 1 : o.span;
+  const same = o.sim ? [] : ALL.filter((x) => x !== o && !x.sim && devKey(x.device) === devKey(o.device) && x.storage === o.storage && !x.expired).sort((a, b) => a.net - b.net).slice(0, 8);
+  openDlg(o.title,
     `<div class="tags">${tags(o)}</div>
-    <div class="sec"><h3>التكاليف لمدة العقد (${o.months} شهراً)</h3>${kv([
-      ["الدفعة الأولى (الجهاز)", euro(o.upfront)],
+    ${o.sim && !PKG.includes(o.sim) ? "" : `<div class="sec"><h3>${o.span === o.months ? `التكاليف لمدة العقد (${o.months} شهراً)` : `التكاليف على 24 شهراً (للمقارنة؛ أقل مدة ${o.months === 1 ? "شهر واحد" : o.months + " شهراً"})`}</h3>${kv([
+      !o.sim && ["الدفعة الأولى (الجهاز)", euro(o.upfront)],
       [o.later == null ? "القسط الشهري" : `القسط الشهري (الأشهر 1-${first})`, euro(o.monthly)],
       o.later != null && [`الدفعة اللاحقة (من الشهر ${o.laterFrom})`, euro(o.later)],
       ["رسوم التفعيل", euro(o.connection)], ["كلفة الإرسال", euro(o.shipping)], ["مجموع الأقساط", euro(o.monthlySum)],
       ["الكلفة الإجمالية", euro(o.total), 1], ["المكافآت (بشروط)", o.bonus > 0 ? "− " + euro(o.bonus) : "—"],
-      ["الإجمالي بعد المكافآت", euro(o.net), 1], ["المتوسط الشهري الفعلي", euro(o.avg), 1], o.bonus > 0 && ["المتوسط الشهري بعد المكافآت", euro(o.avgNet)]])}</div>
-    <div class="sec"><h3>الجهاز</h3>${kv([["الجهاز", esc(o.device)], ["الماركة", esc(o.brand)], ["الذاكرة", gb(o.storage)],
+      ["الإجمالي بعد المكافآت", euro(o.net), 1], ["المتوسط الشهري الفعلي", euro(o.avg), 1], o.bonus > 0 && ["المتوسط الشهري بعد المكافآت", euro(o.avgNet)]])}</div>`}
+    ${o.sim && o.periodDays && o.periodPrice != null ? `<div class="sec"><h3>سعر الباقة كما يحسبه المزوّد</h3>${kv([[`كل ${o.periodDays} يوماً`, euro(o.periodPrice), 1], [`في السنة (${Math.floor(365 / o.periodDays)} مرة)`, euro(o.periodPrice * Math.floor(365 / o.periodDays))], ["ما يعادل شهرياً", euro(o.monthly)]])}</div>` : ""}
+    ${o.sim && !PKG.includes(o.sim) ? `<div class="sec"><h3>الأسعار حسب الاستهلاك</h3>${kv([["سعر الشريحة", o.connection ? euro(o.connection) : "مجاناً"], ["رصيد البداية", o.startCredit ? euro(o.startCredit) : "لا يوجد"], o.perMb != null && ["الإنترنت لكل MB", ct(o.perMb)]])}</div>` : ""}
+    ${Object.keys(o.facts).length ? `<div class="sec"><h3>كل التفاصيل</h3>${kv(Object.entries(o.facts).map(([k, v]) => [k, /^https?:\/\//.test(v) ? `<a href="${esc(safeUrl(v))}" target="_blank" rel="noopener">فتح ↗</a>` : esc(v)]))}</div>` : ""}
+    ${o.sim ? "" : `<div class="sec"><h3>الجهاز</h3>${kv([["الجهاز", esc(o.device)], ["الماركة", esc(o.brand)], ["الذاكرة", gb(o.storage)],
       ["RAM", o.ram ? ltr(o.ram + " GB") : "؟"], ["المعالج", esc(o.chip || "غير معروف")], ["نقاط المعالج", cpuBar(o)], ["فئة الأداء", esc(o.tier)],
-      ["أداء لكل 100 €", o.perf ? o.perf.toFixed(2) : "—"], o.color && ["اللون", esc(o.color)]])}</div>
-    <div class="sec"><h3>التعرفة</h3>${kv([["التعرفة", esc(o.tariff)], ["المزوّد", esc(o.provider || "—")], ["الشبكة", esc(o.network || "؟")],
-      ["الإنترنت", gb(o.data)], ["السرعة", o.speed ? ltr(o.speed + " Mbit/s") : "—"], ["مدة العقد", o.months + " شهراً"],
+      ["أداء لكل 100 €", o.perf ? o.perf.toFixed(2) : "—"], o.color && ["اللون", esc(o.color)]])}</div>`}
+    <div class="sec"><h3>التعرفة</h3>${kv([["التعرفة", esc(o.tariff)], o.sim && ["نوع الخط", esc(SIMK[o.sim] || o.sim)], o.perGb != null && o.sim && ["السعر لكل GB شهرياً", euro(o.perGb)], ["المزوّد", esc(o.provider || "—")], ["الشبكة", esc(o.network || "؟")],
+      ["الإنترنت", gb(o.data)], ["السرعة", o.speed ? ltr(o.speed + " Mbit/s") : "—"], [o.sim ? "أقل مدة للعقد" : "مدة العقد", o.months === 1 ? "شهر واحد" : o.months + " شهراً"],
       ["للشباب فقط", o.young ? "نعم (حد عمر)" : "لا"], o.bonusText && ["المكافآت والهدايا", esc(o.bonusText)]])}</div>
     <div class="sec"><h3>المصدر</h3>${kv([["المتجر", esc(o.shop)], ["نوع المصدر", esc(KIND[o.kind] || o.kind)], ["تاريخ النشر", day(o.published)],
       ["العرض حتى", o.until ? day(o.until) : "غير مذكور"], ["أول ظهور في بحثك", day(o.first)], ["آخر تحديث", day(o.fetched)],
       o.prev != null && ["السعر السابق (بعد المكافآت)", euro(o.prev)]])}</div>
     ${same.length ? `<div class="sec"><h3>نفس الجهاز والذاكرة في عروض أخرى</h3>${kv(same.map((x) => [`${x.shop} · ${x.tariff}`, `<a href="${esc(safeUrl(x.url))}" target="_blank" rel="noopener">${euro(x.net)}</a> · ${gb(x.data)}`]))}</div>` : ""}
-    <p><a class="btn primary" href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener noreferrer">افتح في ${esc(o.shop)} ↗</a></p>`,
+    <p><a class="btn primary" href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener noreferrer">افتح عند ${esc(o.shop)} ↗</a></p>`,
     `<button class="btn" id="favb">${favs.has(o.id) ? "★" : "☆"}</button> <button class="btn" id="copyb" title="نسخ الملخص">⧉</button>`);
   $("#favb").onclick = () => { favs.has(o.id) ? favs.delete(o.id) : favs.add(o.id); LS.set("favs", [...favs]); $("#favb").textContent = favs.has(o.id) ? "★" : "☆"; render(); };
   $("#copyb").onclick = () => navigator.clipboard?.writeText(`${o.device} ${gb(o.storage)} – ${o.shop}\n${o.tariff} (${gb(o.data)}, ${o.network})\nالدفعة الأولى ${euro(o.upfront)}، شهرياً ${euro(o.monthly)}${o.later != null ? ` ثم ${euro(o.later)} من الشهر ${o.laterFrom}` : ""}، المجموع ${euro(o.total)}${o.bonus > 0 ? `، بعد المكافآت ${euro(o.net)}` : ""}\n${o.url}`);
@@ -370,11 +430,13 @@ $("#cmpbtn").onclick = () => {
     ["المتجر", (o) => esc(o.shop)], ["الذاكرة", (o) => gb(o.storage), (o) => o.storage, 1], ["RAM", (o) => (o.ram ? ltr(o.ram + " GB") : "؟"), (o) => o.ram, 1],
     ["المعالج", (o) => esc(o.chip || "؟")], ["نقاط المعالج", (o) => o.score ?? "؟", (o) => o.score, 1], ["فئة الأداء", (o) => esc(o.tier)],
     ["التعرفة", (o) => esc(o.tariff)], ["الشبكة", (o) => esc(o.network)], ["الإنترنت", (o) => gb(o.data), (o) => o.data, 1],
-    ["السرعة", (o) => (o.speed ? o.speed + " Mbit/s" : "—"), (o) => o.speed, 1], ["المدة", (o) => o.months + " شهراً"],
+    ["السرعة", (o) => (o.speed ? o.speed + " Mbit/s" : "—"), (o) => o.speed, 1], ["نوع الخط", (o) => esc(o.sim ? SIMK[o.sim] : "مع جهاز")], ["المدة", (o) => o.months + " شهراً"],
     ["الدفعة الأولى", (o) => euro(o.upfront), (o) => o.upfront], ["الشهري", (o) => euro(o.monthly), (o) => o.monthly],
     ["الدفعة اللاحقة", (o) => (o.later == null ? "—" : `${euro(o.later)} من ش${o.laterFrom}`)], ["التفعيل", (o) => euro(o.connection), (o) => o.connection],
     ["الإرسال", (o) => euro(o.shipping), (o) => o.shipping], ["الإجمالي", (o) => euro(o.total), (o) => o.total],
-    ["المكافآت", (o) => (o.bonus ? euro(o.bonus) : "—"), (o) => o.bonus, 1], ["بعد المكافآت", (o) => euro(o.net), (o) => o.net], ["متوسط شهري", (o) => euro(o.avg), (o) => o.avg],
+    ["المكافآت", (o) => (o.bonus ? euro(o.bonus) : "—"), (o) => o.bonus, 1], ["بعد المكافآت", (o) => euro(o.net), (o) => o.net], ["متوسط شهري", (o) => euro(o.avg), (o) => o.avg], ["لكل GB شهرياً", (o) => (o.perGb != null ? euro(o.perGb) : "—"), (o) => o.perGb],
+    ["سعر الباقة", (o) => (o.periodPrice != null ? `${euro(o.periodPrice)} / ${o.periodDays} يوماً` : "—")], ["لكل MB", (o) => (o.perMb != null ? ct(o.perMb) : "—"), (o) => o.perMb],
+    ["المكالمات", (o) => esc(o.facts["المكالمات إلى الموبايل"] || o.facts["الدقيقة / SMS"] || "—")], ["eSIM", (o) => esc(o.facts["eSIM"] || o.facts["الشريحة"] || "—")],
     ["أداء/100 €", (o) => (o.perf ? o.perf.toFixed(2) : "—"), (o) => o.perf, 1], ["للشباب", (o) => (o.young ? "نعم" : "لا")], ["المصدر", (o) => esc(KIND[o.kind] || o.kind)],
   ];
   const best = (n, hi, o) => {
@@ -383,7 +445,7 @@ $("#cmpbtn").onclick = () => {
     if (new Set(v).size < 2 || n(o) == null) return false;
     return n(o) === (hi ? Math.max(...v) : Math.min(...v));
   };
-  openDlg(`مقارنة ${L.length} عروض`, `<div class="cmpwrap"><table class="cmp"><tr><th></th>${L.map((o) => `<th><a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener">${esc(o.device)}</a></th>`).join("")}</tr>
+  openDlg(`مقارنة ${L.length} عروض`, `<div class="cmpwrap"><table class="cmp"><tr><th></th>${L.map((o) => `<th><a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener">${esc(o.title)}</a></th>`).join("")}</tr>
     ${rows.map(([k, v, n, hi]) => `<tr><td>${k}</td>${L.map((o) => `<td class="${best(n, hi, o) ? "best" : ""}">${v(o)}</td>`).join("")}</tr>`).join("")}</table></div>
     <p><button class="btn" id="cmpclear">إفراغ المقارنة</button></p>`);
   $("#cmpclear").onclick = () => { cmp.clear(); dlg.close(); render(); };
@@ -391,7 +453,8 @@ $("#cmpbtn").onclick = () => {
 
 // ---------- filter panel ----------
 function filters() {
-  const count = (fn) => { const m = new Map(); ALL.forEach((o) => { const v = fn(o); if (v != null && v !== "") m.set(v, (m.get(v) || 0) + 1); }); return m; };
+  const ALLM = MODE(), sim = F.simMode;
+  const count = (fn) => { const m = new Map(); ALLM.forEach((o) => { const v = fn(o); if (v != null && v !== "") m.set(v, (m.get(v) || 0) + 1); }); return m; };
   const chips = (title, key, m, label = (x) => x, order = null, max = 60) => {
     const keys = order ? order.filter((k) => m.has(k)) : [...m.keys()].sort((a, b) => m.get(b) - m.get(a));
     if (!keys.length) return "";
@@ -399,39 +462,41 @@ function filters() {
       `<button class="chip${F[key].includes(k) ? " on" : ""}" data-set="${key}" data-v="${esc(JSON.stringify(k))}">${esc(label(k))} (${m.get(k)})</button>`).join("")}</div></div>`;
   };
   const range = (title, key, fn) => {
-    if (!ALL.length) return "";
-    const v = ALL.map(fn).filter((x) => x != null);
+    if (!ALLM.length) return "";
+    const v = ALLM.map(fn).filter((x) => x != null);
     const lo = Math.floor(Math.min(...v)), hi = Math.ceil(Math.max(...v));
     const r = F[key] || [lo, hi];
     return `<div class="sec"><h3 class="${F[key] ? "on" : ""}">${title}${F[key] ? `<a data-clearr="${key}">مسح</a>` : ""}</h3><div class="rng">
       من <input type="number" data-r="${key}" data-side="0" value="${r[0]}" min="${lo}" max="${hi}" step="1"> إلى <input type="number" data-r="${key}" data-side="1" value="${r[1]}" min="${lo}" max="${hi}" step="1"> €</div></div>`;
   };
-  const toggles = [["best", "أفضل عرض لكل جهاز"], ["onlyBonus", "مع مكافأة"], ["onlyFav", "المفضلة"], ["onlyNew", "جديد (3 أيام)"], ["onlyCheaper", "صار أرخص"], ["hideExpired", "إخفاء المنتهية"]];
+  const toggles = [["best", sim ? "أرخص تعرفة لكل مزوّد" : "أفضل عرض لكل جهاز"], ["onlyBonus", "مع مكافأة"], ["onlyFav", "المفضلة"], ["onlyNew", "جديد (3 أيام)"], ["onlyCheaper", "صار أرخص"], ["hideExpired", "إخفاء المنتهية"]];
   const choice = (title, key, opts, fmt) => `<div class="sec"><h3 class="${F[key] ? "on" : ""}">${title}</h3><div class="chips">${opts.map((v) => `<button class="chip${F[key] === v ? " on" : ""}" data-pick="${key}" data-v="${esc(JSON.stringify(v))}">${fmt(v)}</button>`).join("")}</div></div>`;
   const st = count((o) => o.storage);
   openDlg("الفلاتر",
     `<div class="sec"><h3>خيارات سريعة</h3><div class="chips">${toggles.map(([k, l]) => `<button class="chip${F[k] ? " on" : ""}" data-tog="${k}">${l}</button>`).join("")}</div></div>
-    ${chips("الماركة", "brands", count((o) => o.brand))}
+    ${sim ? chips("نوع الخط", "simKinds", count((o) => o.sim), (k) => SIMK[k] || k, Object.keys(SIMK)) : ""}
+    ${sim && !F.simKinds.length ? '<p class="note">بدون اختيار: تظهر الباقات فقط. "حسب الاستهلاك" و"تجربة / تعارف" تظهر عند اختيارها.</p>' : ""}
+    ${sim ? "" : chips("الماركة", "brands", count((o) => o.brand))}
     ${chips("الشبكة", "networks", count((o) => o.network), undefined, ["Telekom", "Vodafone", "o2"])}
-    ${chips("الذاكرة", "storages", st, gb, [...st.keys()].sort((a, b) => a - b))}
-    ${F.storages.length ? `<div class="chips"><button class="chip${F.unknownStorage ? " on" : ""}" data-tog="unknownStorage">أظهر العروض التي لا تذكر الذاكرة</button></div>` : ""}
+    ${sim ? "" : chips("الذاكرة", "storages", st, gb, [...st.keys()].sort((a, b) => a - b))}
+    ${!sim && F.storages.length ? `<div class="chips"><button class="chip${F.unknownStorage ? " on" : ""}" data-tog="unknownStorage">أظهر العروض التي لا تذكر الذاكرة</button></div>` : ""}
     ${choice("باقة الإنترنت", "dataMin", [0, 20, 50, 100, 150, 200, 300, 9999], (d) => (d === 0 ? "الكل" : d >= 9999 ? "∞ غير محدود" : ltr(d + "+ GB")))}
-    ${range("الدفعة الأولى", "upfront", (o) => o.upfront)}
+    ${sim ? "" : range("الدفعة الأولى", "upfront", (o) => o.upfront)}
     ${range("القسط الشهري", "monthly", (o) => o.monthly)}
-    ${range("الإجمالي بعد المكافآت", "net", (o) => o.net)}
+    ${range(sim ? "الإجمالي على 24 شهراً بعد المكافآت" : "الإجمالي بعد المكافآت", "net", (o) => o.net)}
     ${range("المتوسط الشهري (كل التكاليف ÷ الأشهر)", "avg", (o) => o.avg)}
     ${choice("تعرفات الشباب", "young", ["all", "hide", "only"], (v) => ({ all: "الكل", hide: "إخفاء", only: "فقط" }[v]))}
-    ${chips("فئة الأداء", "tiers", count((o) => o.tier), tierShort, TIERS)}
-    ${choice("أقل نقاط معالج", "cpuMin", [0, 20, 32, 40, 50, 65, 85], (v) => (v ? v + "+" : "الكل"))}
-    ${choice("أقل RAM", "ramMin", [0, 6, 8, 12, 16], (v) => (v ? ltr(v + " GB") : "الكل"))}
-    ${chips("المتجر", "shops", count((o) => o.shop))}
+    ${sim ? "" : chips("فئة الأداء", "tiers", count((o) => o.tier), tierShort, TIERS)}
+    ${sim ? "" : choice("أقل نقاط معالج", "cpuMin", [0, 20, 32, 40, 50, 65, 85], (v) => (v ? v + "+" : "الكل"))}
+    ${sim ? "" : choice("أقل RAM", "ramMin", [0, 6, 8, 12, 16], (v) => (v ? ltr(v + " GB") : "الكل"))}
+    ${sim ? "" : chips("المتجر", "shops", count((o) => o.shop))}
     ${chips("المزوّد", "providers", count((o) => o.provider))}
-    ${chips("مدة العقد (شهر)", "months", count((o) => o.months))}
+    ${chips(sim ? "أقل مدة للعقد (شهر)" : "مدة العقد (شهر)", "months", count((o) => o.months))}
     ${chips("نوع المصدر", "kinds", count((o) => o.kind), (k) => KIND[k] || k)}
-    ${chips("الجهاز", "devices", count((o) => o.device), undefined, null, 200)}`,
+    ${sim ? "" : chips("الجهاز", "devices", count((o) => o.device), undefined, null, 200)}`,
     `<button class="btn" id="mine">شروطي</button> <button class="btn" id="fclear">مسح الكل</button>`);
   $("#mine").onclick = () => { myCriteria(); apply(); filters(); };
-  $("#fclear").onclick = () => { F = Object.assign(freshFilters(), { sort: F.sort }); apply(); filters(); };
+  $("#fclear").onclick = () => { F = cleared(); apply(); filters(); };
 }
 $("#dbody").addEventListener("click", (e) => {
   const t = e.target, d = t.dataset;
